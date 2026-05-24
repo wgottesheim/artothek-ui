@@ -24,7 +24,7 @@ cd scraper && ./scrape.sh
 # 2. Run the Flask dev server
 cd app
 python3 -m venv .venv && .venv/bin/pip install -r requirements.txt
-.venv/bin/python app.py        # http://localhost:5000
+.venv/bin/python app.py        # http://localhost:8080
 ```
 
 Port defaults to 5000, overridable via `PORT` env var.
@@ -39,7 +39,7 @@ bash /opt/artothek-ui/deploy/setup.sh
 
 `setup.sh` creates an `artothek` system user, sets up two separate venvs (scraper + app), runs the first scrape, and installs three systemd units:
 
-- `artothek-web.service` — gunicorn on `0.0.0.0:5000`
+- `artothek-web.service` — gunicorn on `0.0.0.0:8080`
 - `artothek-scraper.service` — oneshot scraper
 - `artothek-scraper.timer` — fires daily at 06:00 (`Persistent=true`)
 
