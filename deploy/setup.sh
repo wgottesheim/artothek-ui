@@ -16,16 +16,16 @@ mkdir -p $PROJECT_DIR/data /var/log/artothek
 chown artothek:artothek $PROJECT_DIR/data /var/log/artothek
 
 # Scraper venv
-[ -d $PROJECT_DIR/scraper/.venv ] || sudo -u artothek python3 -m venv $PROJECT_DIR/scraper/.venv
-sudo -u artothek $PROJECT_DIR/scraper/.venv/bin/pip install -q -r $PROJECT_DIR/scraper/requirements.txt
+[ -d $PROJECT_DIR/scraper/.venv ] || runuser -u artothek -- python3 -m venv $PROJECT_DIR/scraper/.venv
+runuser -u artothek -- $PROJECT_DIR/scraper/.venv/bin/pip install -q -r $PROJECT_DIR/scraper/requirements.txt
 
 # App venv
-[ -d $PROJECT_DIR/app/.venv ] || sudo -u artothek python3 -m venv $PROJECT_DIR/app/.venv
-sudo -u artothek $PROJECT_DIR/app/.venv/bin/pip install -q -r $PROJECT_DIR/app/requirements.txt
+[ -d $PROJECT_DIR/app/.venv ] || runuser -u artothek -- python3 -m venv $PROJECT_DIR/app/.venv
+runuser -u artothek -- $PROJECT_DIR/app/.venv/bin/pip install -q -r $PROJECT_DIR/app/requirements.txt
 
 # First scrape
 echo "Running first scrape…"
-sudo -u artothek bash -c "cd $PROJECT_DIR/scraper && .venv/bin/python scraper.py"
+runuser -u artothek -- bash -c "cd $PROJECT_DIR/scraper && .venv/bin/python scraper.py"
 
 # Systemd
 cp $PROJECT_DIR/deploy/artothek-web.service     /etc/systemd/system/
