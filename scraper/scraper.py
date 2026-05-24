@@ -269,7 +269,7 @@ HTML_TEMPLATE = """\
 <header>
   <h1>Artothek – Die Kunstsammlung OÖ</h1>
   <div class="filters">
-    <input type="text" id="search" placeholder="Künstler/in suchen…">
+    <input type="text" id="search" placeholder="Künstler/in oder Titel suchen…">
     <div class="radio-group">
       <label><input type="radio" name="availability" value="all" checked> Alle</label>
       <label><input type="radio" name="availability" value="available"> Nur entlehnbar</label>
@@ -396,7 +396,7 @@ function filter() {
       const returnDate = parseDMY(a.loaned_until);
       if (a.is_available !== 'True' && (returnDate === null || returnDate > in30)) return false;
     }
-    if (q && !a.artist_name.toLowerCase().includes(q)) return false;
+    if (q && !a.artist_name.toLowerCase().includes(q) && !(a.title || '').toLowerCase().includes(q)) return false;
     const w = a.image_width_cm  ? parseFloat(a.image_width_cm)  : null;
     const h = a.image_height_cm ? parseFloat(a.image_height_cm) : null;
     if (onlyLand && (w === null || h === null || w <= h)) return false;
