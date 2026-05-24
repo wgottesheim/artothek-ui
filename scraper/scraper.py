@@ -438,7 +438,7 @@ def generate_html(records: dict[str, dict], timestamp: str) -> None:
 # ── Main ──────────────────────────────────────────────────────────────────────
 
 def main() -> None:
-    now = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    now = datetime.now(timezone.utc).strftime("%d.%m.%Y, %H:%M UTC")
     print("Loading existing CSV…")
     existing = load_existing_csv()
     print(f"  {len(existing)} artworks in existing CSV")
