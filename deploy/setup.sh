@@ -35,4 +35,5 @@ systemctl daemon-reload
 systemctl enable --now artothek-web.service
 systemctl enable --now artothek-scraper.timer
 
-echo "Done. App running on :5000"
+PORT=$(grep -oP 'PORT=\K[0-9]+' /etc/systemd/system/artothek-web.service)
+echo "Done. App running on :${PORT}"

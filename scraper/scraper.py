@@ -461,7 +461,7 @@ def main() -> None:
 
     print("Generating artworks.html…")
     generate_html(records)
-    print(f"Done. Open {HTML_PATH} in a browser.")
+    print(f"Done. Wrote {HTML_PATH}.")
 
 
 if __name__ == "__main__":
