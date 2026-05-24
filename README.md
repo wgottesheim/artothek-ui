@@ -1,31 +1,51 @@
-# Artothek Scraper
+# Artothek UI
 
-Scrapes artwork metadata from [Die Kunstsammlung OÖ – Artothek](https://www.diekunstsammlung.at/InternetKunstsammlung/internetneu/App_Artothek.jsp) and produces:
+Scrapes artwork metadata from [Die Kunstsammlung OÖ – Artothek](https://www.diekunstsammlung.at/InternetKunstsammlung/internetneu/App_Artothek.jsp) and serves a filterable browser gallery with a server-side wishlist.
 
-- **`artworks.csv`** — full metadata table, queryable with DuckDB
-- **`artworks.html`** — self-contained browser gallery with filters and live thumbnails
+## Architecture
 
-## Usage
-
-```bash
-cd scraper
-./scrape.sh
+```
+scraper/scraper.py   — fetches artworks via AJAX, writes artworks.csv + artworks.html
+app/app.py           — Flask app: serves the gallery, exposes /api/wishlist (SQLite)
+data/wishlist.db     — SQLite wishlist, created at runtime
+deploy/              — systemd units + LXC bootstrap script
 ```
 
-Then open `scraper/artworks.html` in a browser.
+The scraper and web app are decoupled: the scraper regenerates `scraper/artworks.html` (a self-contained file with all artwork data embedded as JSON) and Flask serves it as a static file. The only dynamic piece is `/api/wishlist`.
 
-The script creates a Python virtualenv on first run and installs dependencies automatically. Subsequent runs reuse it.
+The wishlist is global — one shared list for all devices, no auth required. Suitable for a single-user home server.
 
-## Re-running / updating
+## Local development
 
-Run `./scrape.sh` any time to refresh the data. The scraper:
+```bash
+# 1. Generate the gallery HTML (first time, or to refresh data)
+cd scraper && ./scrape.sh
 
-- Updates availability status and any changed fields
-- Appends newly added artworks (`first_seen_at` is set once and never overwritten)
-- Keeps removed artworks in the CSV — they're identifiable by a stale `last_seen_at`
-- Regenerates `artworks.html` with the latest data
+# 2. Run the Flask dev server
+cd app
+python3 -m venv .venv && .venv/bin/pip install -r requirements.txt
+.venv/bin/python app.py        # http://localhost:5000
+```
 
-## HTML gallery filters
+Port defaults to 5000, overridable via `PORT` env var.
+
+## Deployment (Proxmox LXC, Debian 12)
+
+```bash
+# On the container, as root:
+git clone <repo> /opt/artothek-ui
+bash /opt/artothek-ui/deploy/setup.sh
+```
+
+`setup.sh` creates an `artothek` system user, sets up two separate venvs (scraper + app), runs the first scrape, and installs three systemd units:
+
+- `artothek-web.service` — gunicorn on `0.0.0.0:5000`
+- `artothek-scraper.service` — oneshot scraper
+- `artothek-scraper.timer` — fires daily at 06:00 (`Persistent=true`)
+
+To change the port: edit `Environment=PORT=5000` in `deploy/artothek-web.service`.
+
+## Gallery filters
 
 | Filter | Description |
 |--------|-------------|
@@ -35,7 +55,15 @@ Run `./scrape.sh` any time to refresh the data. The scraper:
 | Breite min / max | Filter by image width in cm |
 | Höhe min / max | Filter by image height in cm |
 
-Clicking a thumbnail opens the full-size image in a new tab. The inventory number (INV) shown on each card is required when contacting the Artothek to rent an artwork.
+Clicking a thumbnail opens the full-size image in a new tab. The inventory number (INV) shown on each card is required when contacting the Artothek to borrow an artwork.
+
+## Wishlist API
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| `GET` | `/api/wishlist` | Returns list of wishlisted `artwork_id`s |
+| `POST` | `/api/wishlist` | Add `{"artwork_id": "..."}` to wishlist |
+| `DELETE` | `/api/wishlist/<id>` | Remove an artwork from wishlist |
 
 ## CSV columns
 
@@ -47,7 +75,7 @@ Clicking a thumbnail opens the full-size image in a new tab. The inventory numbe
 | `title` | Artwork title |
 | `year` | Year of creation |
 | `technique` | Medium / technique |
-| `inventory_number` | Inventory number — required to rent the artwork |
+| `inventory_number` | Inventory number — required to borrow the artwork |
 | `image_width_cm` | Image width in cm |
 | `image_height_cm` | Image height in cm |
 | `frame_width_cm` | Frame width in cm (not always present) |
@@ -85,14 +113,4 @@ SELECT artist_name, title, first_seen_at
 FROM 'scraper/artworks.csv'
 WHERE first_seen_at >= '2026-01-01'
 ORDER BY first_seen_at DESC;
-```
-
-## Scheduling (optional)
-
-To refresh automatically every week, add a cron job:
-
-```bash
-crontab -e
-# Add:
-0 8 * * 1 /path/to/artothek-ui/scraper/scrape.sh >> /tmp/artothek-scrape.log 2>&1
 ```

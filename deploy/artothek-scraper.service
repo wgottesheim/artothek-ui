@@ -1,0 +1,11 @@
+[Unit]
+Description=Artothek scraper
+After=network.target
+
+[Service]
+Type=oneshot
+User=artothek
+WorkingDirectory=/opt/artothek-ui/scraper
+ExecStart=/opt/artothek-ui/scraper/.venv/bin/python scraper.py
+StandardOutput=journal
+StandardError=journal

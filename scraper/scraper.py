@@ -217,6 +217,7 @@ HTML_TEMPLATE = """\
     font-size: 0.85rem; min-width: 180px;
   }
   .filters label { font-size: 0.85rem; display: flex; align-items: center; gap: 5px; cursor: pointer; }
+  .radio-group { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
   .filters .dim-group { display: flex; align-items: center; gap: 4px; font-size: 0.82rem; }
   .filters .dim-group input[type=number] {
     width: 56px; padding: 4px 6px; border: 1px solid #ccc; border-radius: 6px;
@@ -231,10 +232,19 @@ HTML_TEMPLATE = """\
   }
 
   .card {
+    position: relative;
     background: #fff; border-radius: 8px; overflow: hidden;
     box-shadow: 0 1px 4px rgba(0,0,0,.08); transition: box-shadow .15s;
     display: flex; flex-direction: column;
   }
+  .wish-btn {
+    position: absolute; top: 6px; right: 6px;
+    background: rgba(255,255,255,0.85); border: none; border-radius: 50%;
+    width: 28px; height: 28px; font-size: 1rem; line-height: 28px;
+    text-align: center; cursor: pointer; color: #bbb;
+    box-shadow: 0 1px 3px rgba(0,0,0,.15); padding: 0; z-index: 1;
+  }
+  .wish-btn.active { color: #e33; }
   .card:hover { box-shadow: 0 4px 12px rgba(0,0,0,.14); }
   .card a.thumb { display: block; background: #eee; aspect-ratio: 1; overflow: hidden; }
   .card a.thumb img { width: 100%; height: 100%; object-fit: contain; loading: lazy; }
@@ -260,7 +270,12 @@ HTML_TEMPLATE = """\
   <h1>Artothek – Die Kunstsammlung OÖ</h1>
   <div class="filters">
     <input type="text" id="search" placeholder="Künstler/in suchen…">
-    <label><input type="checkbox" id="onlyAvailable"> Nur entlehnbare Werke</label>
+    <div class="radio-group">
+      <label><input type="radio" name="availability" value="all" checked> Alle</label>
+      <label><input type="radio" name="availability" value="available"> Nur entlehnbar</label>
+      <label><input type="radio" name="availability" value="soon"> Entlehnbar oder zurück in 30 Tagen</label>
+    </div>
+    <label><input type="checkbox" id="onlyWishlist"> Merkliste <span id="wishCount"></span></label>
     <label><input type="checkbox" id="onlyLandscape"> Nur Querformat (B > H)</label>
     <div class="dim-group">
       Breite <input type="number" id="minW" min="0" placeholder="min">
@@ -282,11 +297,37 @@ HTML_TEMPLATE = """\
 <script>
 const ARTWORKS = __ARTWORKS_JSON__;
 
+let wishlist = new Set();
+
+async function loadWishlist() {
+  const ids = await fetch('/api/wishlist').then(r => r.json());
+  wishlist = new Set(ids);
+  updateWishCount();
+  filter();
+}
+async function toggleWishlist(id) {
+  if (wishlist.has(id)) {
+    await fetch('/api/wishlist/' + id, { method: 'DELETE' });
+    wishlist.delete(id);
+  } else {
+    await fetch('/api/wishlist', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ artwork_id: id })
+    });
+    wishlist.add(id);
+  }
+  updateWishCount();
+  filter();
+}
+function updateWishCount() {
+  document.getElementById('wishCount').textContent = wishlist.size ? '(' + wishlist.size + ')' : '';
+}
+
 const gallery        = document.getElementById('gallery');
 const countEl        = document.getElementById('count');
 const emptyEl        = document.getElementById('empty');
 const searchEl       = document.getElementById('search');
-const onlyAvEl       = document.getElementById('onlyAvailable');
 const onlyLandEl     = document.getElementById('onlyLandscape');
 const minWEl         = document.getElementById('minW');
 const maxWEl         = document.getElementById('maxW');
@@ -310,7 +351,9 @@ function renderCard(a) {
     : '';
   const tech = [a.year, a.technique].filter(Boolean).join(', ');
   const inv  = a.inventory_number ? '<span class="inv">INV ' + a.inventory_number + '</span>' : '';
+  const wished = wishlist.has(a.artwork_id);
   return `<div class="card">
+    <button class="wish-btn${wished ? ' active' : ''}" data-id="${a.artwork_id}" title="Zur Merkliste">♥</button>
     <a class="thumb" href="${a.full_image_url}" target="_blank" rel="noopener">
       <img src="${a.thumbnail_url}" alt="${a.title}" loading="lazy">
     </a>
@@ -329,15 +372,29 @@ function numVal(el) {
   return v === '' ? null : parseFloat(v);
 }
 
+function parseDMY(s) {
+  if (!s) return null;
+  const [d, m, y] = s.split('.');
+  return new Date(+y, +m - 1, +d);
+}
+
 function filter() {
-  const q         = searchEl.value.trim().toLowerCase();
-  const onlyAv    = onlyAvEl.checked;
-  const onlyLand  = onlyLandEl.checked;
+  const q        = searchEl.value.trim().toLowerCase();
+  const avMode   = document.querySelector('input[name="availability"]:checked').value;
+  const onlyWish = document.getElementById('onlyWishlist').checked;
+  const onlyLand = onlyLandEl.checked;
+  const today    = new Date(); today.setHours(0, 0, 0, 0);
+  const in30     = new Date(today); in30.setDate(in30.getDate() + 30);
   const minW = numVal(minWEl), maxW = numVal(maxWEl);
   const minH = numVal(minHEl), maxH = numVal(maxHEl);
 
   const visible = ARTWORKS.filter(a => {
-    if (onlyAv && a.is_available !== 'True') return false;
+    if (onlyWish && !wishlist.has(a.artwork_id)) return false;
+    if (avMode === 'available' && a.is_available !== 'True') return false;
+    if (avMode === 'soon') {
+      const returnDate = parseDMY(a.loaned_until);
+      if (a.is_available !== 'True' && (returnDate === null || returnDate > in30)) return false;
+    }
     if (q && !a.artist_name.toLowerCase().includes(q)) return false;
     const w = a.image_width_cm  ? parseFloat(a.image_width_cm)  : null;
     const h = a.image_height_cm ? parseFloat(a.image_height_cm) : null;
@@ -354,8 +411,15 @@ function filter() {
   emptyEl.style.display = visible.length === 0 ? 'block' : 'none';
 }
 
-[searchEl, onlyAvEl, onlyLandEl, minWEl, maxWEl, minHEl, maxHEl].forEach(el => el.addEventListener('input', filter));
-filter();
+gallery.addEventListener('click', e => {
+  const btn = e.target.closest('.wish-btn');
+  if (btn) { e.preventDefault(); toggleWishlist(btn.dataset.id); }
+});
+
+document.querySelectorAll('input[name="availability"]').forEach(el => el.addEventListener('change', filter));
+document.getElementById('onlyWishlist').addEventListener('change', filter);
+[searchEl, onlyLandEl, minWEl, maxWEl, minHEl, maxHEl].forEach(el => el.addEventListener('input', filter));
+loadWishlist();
 </script>
 </body>
 </html>
