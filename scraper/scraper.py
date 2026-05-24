@@ -289,6 +289,7 @@ HTML_TEMPLATE = """\
     </div>
   </div>
   <span id="count"></span>
+  <span id="scrape-ts" style="font-size:0.75rem;color:#aaa;white-space:nowrap">Stand: __SCRAPE_TIMESTAMP__</span>
 </header>
 
 <div id="gallery"></div>
@@ -426,10 +427,11 @@ loadWishlist();
 """
 
 
-def generate_html(records: dict[str, dict]) -> None:
+def generate_html(records: dict[str, dict], timestamp: str) -> None:
     artworks = list(records.values())
     json_data = json.dumps(artworks, ensure_ascii=False, indent=None)
     html = HTML_TEMPLATE.replace("__ARTWORKS_JSON__", json_data)
+    html = html.replace("__SCRAPE_TIMESTAMP__", timestamp)
     HTML_PATH.write_text(html, encoding="utf-8")
 
 
@@ -460,7 +462,7 @@ def main() -> None:
         print(f"  {len(missing)} artworks not seen this run (may have been removed)")
 
     print("Generating artworks.html…")
-    generate_html(records)
+    generate_html(records, now)
     print(f"Done. Wrote {HTML_PATH}.")
 
 
